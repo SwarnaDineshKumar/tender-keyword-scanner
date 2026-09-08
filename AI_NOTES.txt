@@ -1,0 +1,86 @@
+================================================================================
+Tender / Scope-of-Work Keyword Scanner — AI Usage & Development Notes
+================================================================================
+
+This document details the realistic prompts used during the development of the 
+Tender / Scope-of-Work Keyword Scanner application, along with an explanation of 
+how the AI-assisted output was evaluated, modified, or implemented.
+
+--------------------------------------------------------------------------------
+PROMPT 1: Architecture Scaffolding & MongoDB Decoupling
+--------------------------------------------------------------------------------
+
+[Prompt]
+"Create the initial project structure separating the React frontend and Node.js + 
+Express backend. Do not include MongoDB or authentication. Set up configurable 
+keywords in JSON format, dynamic relevance scoring thresholds, and orchestrate 
+both workspaces with root npm scripts."
+
+[What it was intended to accomplish]
+Establish a clean full-stack monorepo structure with Vite + React on port 5173 
+and Express on port 4000. The repository originally had partial Mongoose/MongoDB 
+references that needed to be cleanly removed to keep the core scanner stateless 
+and lightweight as specified by the assignment requirements.
+
+[How the output was used]
+MODIFIED. The AI generated the directory layout, Vite config with proxying, and 
+root package.json scripts. The backend services were manually cleaned up to remove 
+all mongoose models and database connection logic, replacing them with a purely 
+stateless in-memory scanner and configurable JSON/JS threshold modules.
+
+--------------------------------------------------------------------------------
+PROMPT 2: Deterministic Keyword Matching Engine with Word Boundaries
+--------------------------------------------------------------------------------
+
+[Prompt]
+"Improve the deterministic keyword matcher in matchKeywords.service.js. It must 
+be case-insensitive, support singular/plural forms (-s, -es, -ies) and verb forms 
+(-ing/-ed), allow hyphens in words like 'pre-tensioning', and prevent subword 
+false positives such as 'donut splitter' matching 'nut splitter'."
+
+[What it was intended to accomplish]
+The initial matching implementation used String.prototype.indexOf(), which caused 
+subword false positives (e.g. 'donut splitter' matched 'nut splitter'). The goal 
+was to construct regex lookarounds, generate phrase variants for engineering terms, 
+sort candidate phrases by length descending to prioritize specific phrases over 
+general sub-phrases, and guarantee that distinct keyword counts are never inflated 
+by repeated occurrences within the same document.
+
+[How the output was used]
+REVIEWED AND IMPLEMENTED MANUALLY. The regular expression lookaround structure 
+((?<![a-zA-Z0-9]) ... (?![a-zA-Z0-9])) and phrase variant generator were verified 
+and integrated. A comprehensive test suite (keywordMatching.test.js) was created 
+to assert against real-world test cases including 'donut splitter', plurals, 
+and hyphenated phrases.
+
+--------------------------------------------------------------------------------
+PROMPT 3: Excel Report Generation & Buffer Delivery
+--------------------------------------------------------------------------------
+
+[Prompt]
+"Generate a downloadable Excel (.xlsx) report using exceljs containing: 
+Document Name, Matched Keywords, Match Count, and Relevance to Tritorc. Format 
+headers in navy blue with white text, apply conditional green/yellow/red fills 
+to the relevance column, and return the buffer as Base64 to be downloaded in React."
+
+[What it was intended to accomplish]
+Provide an automated spreadsheet generator that creates professional, audit-ready 
+reports summarizing scan batches, and delivers them directly through the REST API 
+without requiring local file persistence on the server.
+
+[How the output was used]
+USED WITH MODIFICATIONS. The column definitions and styles were adapted to match 
+Tritorc's brand palette (#1F4E79 navy blue header). The helper formatKeywords was 
+refined to show '(none found)' for 0 matches. An automated test was written to 
+parse the generated buffer back using exceljs to verify column headers, cell fills, 
+and values.
+
+================================================================================
+Summary of AI Usage Policy Compliance
+================================================================================
+- Keyword matching is 100% deterministic code (no AI/LLM was used in the scanner).
+- AI was used strictly for boilerplate scaffolding, styling inspiration, and 
+  regex lookaround prototyping.
+- All code, test suites, and integration flows were reviewed, tested, and validated 
+  against real government tender PDFs.
+================================================================================
