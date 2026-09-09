@@ -1,34 +1,146 @@
 # Tender / Scope-of-Work Keyword Scanner
 
-An automated full-stack web application designed for **Tritorc's** sales and engineering bid estimation team. The application automatically ingests and screens tender documents and Scope of Work (SOW) files (PDF and DOCX) against a configurable catalog of bolting, machining, and flange management keywords, computes dynamic relevance ratings, and generates styled, downloadable Excel (.xlsx) reports.
+An automated full-stack web application designed for **Tritorc's** sales and engineering bid estimation team.
+
+The application ingests tender documents and Scope of Work (SOW) files in **PDF and DOCX** format, screens them against a configurable catalog of Tritorc-relevant bolting and flange-management keywords, calculates document relevance, stores successful scan history in **MongoDB Atlas**, and generates styled downloadable **Excel reports**.
 
 ---
 
 ## What the Application Does
 
-Tritorc regularly receives large tender packages and complex SOW documents from EPC contractors, refinery operators, and asset owners. Manually skimming each 50-to-200-page document to check whether it contains mechanical bolting, flange management, or torque tool requirements is slow and error-prone.
+Tritorc regularly receives large tender packages and complex SOW documents from EPC contractors, refinery operators, and asset owners. Manually reviewing these documents to identify mechanical bolting, flange management, torque-tool, or shutdown-related requirements can be time-consuming.
 
-This tool automates that pre-bid qualification:
-1. Users upload one or more tender files (`.pdf` and `.docx`).
-2. The backend extracts text in-memory using `pdf-parse` (PDF) and `mammoth` (DOCX).
-3. A deterministic, rules-based engine scans the extracted text for configured industry keywords with full singular/plural and verb variant support.
-4. Each document receives a dynamic relevance verdict (*Related*, *Possibly Related*, or *Not Related*) based on configurable match thresholds.
-5. The frontend displays summary statistics and an interactive results table.
-6. Users can download a formatted Excel spreadsheet summarizing all scanned documents.
+This application automates the initial document-screening stage of the bid qualification process.
+
+### Workflow
+
+1. Users upload one or more tender/SOW documents.
+2. The backend validates the uploaded files and accepts `.pdf` and `.docx` documents.
+3. PDF text is extracted using `pdf-parse`.
+4. DOCX text is extracted using `mammoth`.
+5. The extracted text is scanned against the configured Tritorc keyword catalog.
+6. Matching is performed using deterministic, rules-based logic.
+7. Distinct matched keywords are counted.
+8. A relevance verdict is calculated dynamically from the number of matched keywords.
+9. Successful scan results are stored in MongoDB Atlas.
+10. The frontend displays the current scan results and previous scan history.
+11. Users can download the scan results as a formatted Excel workbook.
 
 ---
 
 ## Key Features
 
-- **Multi-Document Ingestion**: Upload multiple `.pdf` and `.docx` files simultaneously with drag-and-drop or file selection.
-- **Deterministic Keyword Engine**: 100% rules-based, case-insensitive phrase matching with word-boundary lookarounds and stemming (no AI/LLM hallucinations or non-deterministic variance).
-- **Subword False-Positive Prevention**: Ensures substrings inside unrelated words (e.g. `donut splitter`) do not falsely trigger keyword hits (`Nut splitter`).
-- **Singular/Plural & Variant Tolerance**: Automatically handles plural forms (`-s`, `-es`, `-ies`) and engineering verb forms (`tensioning` / `tensioned`, `tightening` / `tightened`, `bolting` / `bolted`).
-- **Distinct Keyword Counting**: Repeated mentions of the same keyword in a document count as 1 distinct match, avoiding artificial score inflation.
-- **Dynamic & Configurable Relevance**: Evaluates relevance based on configurable thresholds without hardcoded rules.
-- **Styled Excel Export (.xlsx)**: Generates a downloadable Excel report with formatted headers, auto-fit column widths, and color-coded status fills.
-- **Fault-Tolerant Processing**: Individual file failures or unsupported formats in a batch do not halt the scanning of other valid documents.
-- **Interactive UI**: Includes search and filter controls, summary statistic cards, an expandable keyword catalog viewer, and a 1-click "Start New Scan" action.
+### Multi-Document Upload
+
+- Upload multiple PDF and DOCX documents in a single scan.
+- Drag-and-drop or file-selection interface.
+- Files are processed independently.
+- A failure in one document does not prevent other valid documents from being scanned.
+
+### Deterministic Keyword Matching
+
+The scanner uses a **rules-based matching engine** rather than an AI/LLM to determine relevance.
+
+Matching supports:
+
+- Case-insensitive matching
+- Singular/plural variants
+- Common engineering verb variants
+- Hyphen and spacing tolerance
+- Word-boundary protection
+- Subword false-positive prevention
+
+Common engineering variants such as `tensioning` / `tensioned`, `tightening` / `tightened`, and `bolting` / `bolted` are handled where applicable.
+
+### Distinct Keyword Counting
+
+Repeated mentions of the same keyword do not artificially increase the relevance score.
+
+Each configured keyword contributes at most one distinct match per document.
+
+### Dynamic Relevance Scoring
+
+Relevance is calculated from the number of distinct matched keywords.
+
+The current scoring model is:
+
+| Match Count | Relevance |
+|---:|---|
+| 0 | Not Related |
+| 1–2 | Possibly Related |
+| 3+ | Related |
+
+The thresholds are configurable in the backend.
+
+### MongoDB Scan History
+
+Successful scan results are persisted in **MongoDB Atlas**.
+
+Each history record stores:
+
+- Batch ID
+- Document name
+- Matched keywords
+- Match count
+- Relevance verdict
+- Scan timestamp
+
+The application displays recent scan history with the newest scans shown first.
+
+### Excel Export
+
+The backend generates a formatted `.xlsx` report using `ExcelJS`.
+
+The report includes:
+
+- Document Name
+- Matched Keywords
+- Match Count
+- Relevance
+
+### Responsive Frontend
+
+The frontend provides a clean, professional interface for:
+
+- Uploading documents
+- Viewing configured keywords
+- Reviewing scan results
+- Viewing scan statistics
+- Downloading Excel reports
+- Reviewing previous scan history
+
+---
+
+## Tritorc Keyword Catalog
+
+The default keyword catalog contains 20 Tritorc-relevant terms:
+
+1. Hydraulic torque wrench
+2. Bolt tensioner
+3. Hydraulic bolt tensioning
+4. Controlled bolting
+5. Flange management
+6. Flange joint integrity
+7. Torque wrench
+8. Stud bolt tensioning
+9. Nut splitter
+10. Torque multiplier
+11. Bolting tools
+12. Flange bolt tightening
+13. Turnaround services
+14. Shutdown maintenance
+15. Plant shutdown
+16. Bolted joint
+17. Pre-tensioning
+18. Gasket and flange management
+19. Torque calibration
+20. Mechanical bolting
+
+The keywords are maintained in:
+
+    server/src/config/keywords.json
+
+This allows the keyword catalog to be modified without changing the core matching logic.
 
 ---
 
@@ -36,267 +148,579 @@ This tool automates that pre-bid qualification:
 
 | Layer | Technology | Purpose |
 | :--- | :--- | :--- |
-| **Frontend** | React 18, Vite | Component architecture, responsive client interface, local dev proxy |
-| **Icons & Styling** | Lucide React, Custom CSS Design Tokens | Industrial engineering UI aesthetic, responsive mobile/desktop layout |
-| **Backend** | Node.js (>=18), Express | REST API, multipart file ingestion, batch orchestration |
-| **File Handling** | Multer (Memory Storage) | In-memory stream handling for uploaded files |
-| **PDF Extraction** | `pdf-parse` | Buffer-level text extraction from binary PDF streams |
-| **DOCX Extraction** | `mammoth` | Raw text extraction from OpenXML Word documents |
-| **Excel Generation**| `exceljs` | Automated creation and formatting of `.xlsx` workbooks |
-| **Testing** | Node.js Built-in Test Runner (`node:test`) | Unit and integration test suite |
+| **Frontend** | React 18, Vite | Client-side application and UI |
+| **Icons & Styling** | Lucide React, Custom CSS | Interface icons and responsive styling |
+| **Backend** | Node.js, Express | REST API and application logic |
+| **Database** | MongoDB Atlas | Persistent scan history |
+| **File Uploads** | Multer | In-memory multipart file handling |
+| **PDF Extraction** | `pdf-parse` | PDF text extraction |
+| **DOCX Extraction** | `mammoth` | DOCX text extraction |
+| **Excel Generation** | `exceljs` | Styled Excel report generation |
+| **Testing** | Node.js `node:test` | Backend automated testing |
 
 ---
 
 ## Project Structure
 
-```
-tender-keyword-scanner/
-├── client/                     # Frontend React application (Vite)
-│   ├── src/
-│   │   ├── components/         # Modular UI components
-│   │   │   ├── FileUpload.jsx  # Drag-and-drop upload zone, format pills, staging list
-│   │   │   ├── ResultsTable.jsx# Results table, search/filter, stats, Excel download action
-│   │   │   ├── RelevanceBadge.jsx # Color-coded relevance status badges
-│   │   │   ├── KeywordList.jsx # Collapsible active keyword catalog with search
-│   │   │   └── Header.jsx      # Tritorc branding and system status indicator
-│   │   ├── services/
-│   │   │   └── api.js          # REST client (/api/scan, /api/keywords, /api/health) & Excel downloader
-│   │   ├── App.jsx             # Main dashboard state orchestration
-│   │   ├── App.css             # Layout, animations, cards, badges, and responsive CSS
-│   │   ├── index.css           # Global typography, color tokens, and resets
-│   │   └── main.jsx            # React root mount
-│   ├── index.html              # HTML template with Inter typography
-│   ├── vite.config.js          # Vite configuration with /api proxy to port 4000
-│   └── package.json
-│
-├── server/                     # Backend Node.js + Express REST API
-│   ├── src/
-│   │   ├── config/
-│   │   │   ├── env.js          # Port & file size limit settings
-│   │   │   ├── keywords.json   # 20 default Tritorc industry keywords
-│   │   │   └── relevance.js    # Configurable relevance thresholds
-│   │   ├── controllers/
-│   │   │   └── scan.controller.js  # Request handlers (/scan, /keywords, /health)
-│   │   ├── middleware/
-│   │   │   └── upload.js       # Multer configuration for .pdf and .docx
-│   │   ├── routes/
-│   │   │   └── scan.routes.js  # REST API route mapping
-│   │   ├── services/
-│   │   │   ├── extractText.service.js   # PDF and DOCX text extraction
-│   │   │   ├── matchKeywords.service.js # Deterministic keyword matcher
-│   │   │   ├── scoreRelevance.service.js# Dynamic relevance scoring
-│   │   │   ├── excel.service.js         # Excel (.xlsx) workbook builder
-│   │   │   └── extractFields.service.js # Metadata/field parser
-│   │   ├── utils/
-│   │   │   └── keywords.js     # Keyword file loader
-│   │   └── index.js            # Express server entry point
-│   ├── test/                   # Automated backend test suite
-│   │   ├── apiScan.test.js     # End-to-end HTTP API tests
-│   │   ├── keywordMatching.test.js # Regex, boundary & stemming tests
-│   │   ├── extraction.test.js  # PDF & DOCX extraction tests
-│   │   ├── relevance.test.js   # Scoring threshold tests
-│   │   └── excel.test.js       # Excel workbook structure tests
-│   ├── .env.example
-│   ├── .env                    # Local environment variables
-│   └── package.json
-│
-├── sample-documents/           # Real GeM tender sample PDFs for verification
-├── package.json                # Root convenience scripts
-├── AI_NOTES.txt                # AI usage and prompt documentation
-├── DEPLOY.md                   # Deployment architecture guide
-└── README.md                   # Project documentation
-```
+    tender-keyword-scanner/
+    │
+    ├── client/
+    │   ├── src/
+    │   │   ├── components/
+    │   │   │   ├── FileUpload.jsx
+    │   │   │   ├── ResultsTable.jsx
+    │   │   │   ├── RelevanceBadge.jsx
+    │   │   │   ├── KeywordList.jsx
+    │   │   │   └── Header.jsx
+    │   │   │
+    │   │   ├── services/
+    │   │   │   └── api.js
+    │   │   │
+    │   │   ├── App.jsx
+    │   │   ├── App.css
+    │   │   ├── index.css
+    │   │   └── main.jsx
+    │   │
+    │   ├── index.html
+    │   ├── vite.config.js
+    │   └── package.json
+    │
+    ├── server/
+    │   ├── src/
+    │   │   ├── config/
+    │   │   │   ├── env.js
+    │   │   │   ├── mongodb.js
+    │   │   │   ├── keywords.json
+    │   │   │   └── relevance.js
+    │   │   │
+    │   │   ├── controllers/
+    │   │   │   └── scan.controller.js
+    │   │   │
+    │   │   ├── middleware/
+    │   │   │   └── upload.js
+    │   │   │
+    │   │   ├── routes/
+    │   │   │   └── scan.routes.js
+    │   │   │
+    │   │   ├── services/
+    │   │   │   ├── extractText.service.js
+    │   │   │   ├── matchKeywords.service.js
+    │   │   │   ├── scoreRelevance.service.js
+    │   │   │   ├── excel.service.js
+    │   │   │   ├── extractFields.service.js
+    │   │   │   └── scanHistory.service.js
+    │   │   │
+    │   │   ├── utils/
+    │   │   │   └── keywords.js
+    │   │   │
+    │   │   └── index.js
+    │   │
+    │   ├── test/
+    │   │   ├── apiScan.test.js
+    │   │   ├── keywordMatching.test.js
+    │   │   ├── extraction.test.js
+    │   │   ├── relevance.test.js
+    │   │   └── excel.test.js
+    │   │
+    │   ├── .env.example
+    │   └── package.json
+    │
+    ├── sample-documents/
+    │
+    ├── package.json
+    ├── AI_NOTES.txt
+    ├── DEPLOY.md
+    └── README.md
 
 ---
 
 ## Prerequisites
 
-- **Node.js**: Version `18.0.0` or higher (tested on Node `v20.19.5`)
-- **npm**: Version `9.0.0` or higher (tested on npm `10.8.2`)
+Make sure the following are installed:
+
+- Node.js 18+
+- npm
+- MongoDB Atlas account/database for scan history
+
+Node.js can be downloaded from:
+
+https://nodejs.org/
 
 ---
 
-## Installation & Setup
+## Installation
 
-1. **Clone or navigate to the project directory**:
-   ```bash
-   cd tender-keyword-scanner
-   ```
+Clone the repository:
 
-2. **Install all dependencies (both root, server, and client)**:
-   ```bash
-   npm run install:all
-   ```
-   *Alternatively, install each workspace individually:*
-   ```bash
-   cd server && npm install
-   cd ../client && npm install
-   cd ..
-   ```
+    git clone https://github.com/SwarnaDineshKumar/tender-keyword-scanner.git
+
+Move into the project:
+
+    cd tender-keyword-scanner
+
+Install the root dependencies:
+
+    npm install
+
+Install backend dependencies:
+
+    cd server
+    npm install
+
+Install frontend dependencies:
+
+    cd ../client
+    npm install
+
+Return to the project root:
+
+    cd ..
 
 ---
 
 ## Environment Variables
 
-The backend configuration lives in `server/.env` (a template is provided in `server/.env.example`):
+The backend uses environment variables for configuration.
 
-```env
-PORT=4000
-```
+Create:
 
-- `PORT`: The local HTTP port the Express server listens on (default: `4000`).
+    server/.env
+
+Example:
+
+    PORT=4000
+    MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-url>/tender_scanner
+
+### MongoDB Atlas Setup
+
+1. Create a MongoDB Atlas cluster.
+2. Create a database user.
+3. Allow the required application IP address in Atlas Network Access.
+4. Copy the MongoDB connection string.
+5. Add it to `server/.env` as `MONGODB_URI`.
+
+The application uses the database:
+
+    tender_scanner
+
+and stores scan history in:
+
+    scan_history
+
+Do **not** commit `server/.env` or MongoDB credentials to GitHub.
 
 ---
 
-## How to Run
+## Running the Application
 
-### 1. Start Backend Server
-```bash
-npm run server
-# Server starts on http://localhost:4000 with --watch mode enabled
-```
+The backend and frontend run as separate development processes.
 
-### 2. Start Frontend Client
-```bash
-npm run client
-# Vite development server starts on http://localhost:5173
-```
+### Start Backend
 
-Open **`http://localhost:5173`** in your browser. The Vite dev server proxies all `/api/*` requests directly to `http://localhost:4000`.
+From the project root:
 
-### 3. Run Automated Tests
-```bash
-npm test
-# Executes the complete 20-test automated suite using node:test
-```
+    cd server
+    npm run dev
 
-### 4. Build for Production
-```bash
-npm run build
-# Compiles frontend assets into client/dist
-```
+The API will be available at:
+
+    http://localhost:4000
+
+### Start Frontend
+
+Open another terminal:
+
+    cd client
+    npm run dev
+
+Vite will provide the frontend development URL, normally:
+
+    http://localhost:5173
+
+The Vite development server proxies `/api` requests to the Express backend.
 
 ---
 
 ## API Endpoints
 
-### 1. `GET /api/health`
-Checks server health and uptime.
-- **Response**: `200 OK`
-  ```json
-  {
-    "status": "ok",
-    "uptime": 12.45,
-    "timestamp": "2026-09-09T00:00:00.000Z"
-  }
-  ```
+### Health Check
 
-### 2. `GET /api/keywords`
-Fetches the active configured list of screening keywords.
-- **Response**: `200 OK`
-  ```json
-  {
-    "keywords": [
-      "Hydraulic torque wrench",
-      "Bolt tensioner",
-      "Hydraulic bolt tensioning",
-      "Controlled bolting",
-      "Flange management",
-      ...
-    ]
-  }
-  ```
+    GET /api/health
 
-### 3. `POST /api/scan`
-Uploads one or more documents for text extraction, keyword scanning, relevance evaluation, and Excel report generation.
-- **Request**: `multipart/form-data`
-  - Field: `files` (array of file blobs, `.pdf` or `.docx`, up to 10 files, max 15MB each).
-- **Response**: `200 OK`
-  ```json
-  {
-    "batchId": "7c26ecb9-a0d0-488b-a51f-844cfc9dd8e0",
-    "results": [
-      {
-        "documentName": "GeM-Bidding-9649647.pdf",
-        "matchedKeywords": ["Hydraulic torque wrench", "Torque wrench"],
-        "matchedKeywordsDisplay": "Hydraulic torque wrench, Torque wrench",
-        "matchCount": 2,
-        "relevance": "Possibly Related"
-      }
-    ],
-    "excelBase64": "UEsDBBQAAAAIA...",
-    "excelFilename": "tender_scan_report_1788894333382.xlsx"
-  }
-  ```
-- **Error Response**: `400 Bad Request` if no files are provided or field name is incorrect.
+Returns the current API health status.
+
+### Get Keywords
+
+    GET /api/keywords
+
+Returns the currently configured Tritorc keyword catalog.
+
+### Scan Documents
+
+    POST /api/scan
+
+Content type:
+
+    multipart/form-data
+
+Files must be sent using the field name:
+
+    files
+
+The endpoint returns the scan results and a generated Excel report encoded for frontend download.
+
+### Get Scan History
+
+    GET /api/history
+
+Returns recent successful scan records stored in MongoDB Atlas.
+
+The history endpoint returns the newest scan records first.
 
 ---
 
-## How Keyword Matching & Relevance Scoring Work
+## How Keyword Matching Works
 
-### Deterministic Keyword Matching
-Keyword matching is implemented purely in deterministic JavaScript code ([matchKeywords.service.js](file:///c:/Users/dines/OneDrive/Desktop/tender-keyword-scanner/server/src/services/matchKeywords.service.js)) without any external AI or LLM API calls:
-1. **Normalization**: Input text is lowercased and collapsed into single whitespace delimiters.
-2. **Word-Boundary Lookarounds**: Regular expressions use `(?<![a-zA-Z0-9])` and `(?![a-zA-Z0-9])` to guarantee that keywords only match whole words. For example, `"donut splitter"` will never match `"Nut splitter"`.
-3. **Singular/Plural & Stem Variants**: The engine varies the terminal word of each keyword phrase across common English plural patterns (`-s`, `-es`, `-ies`) and engineering participle forms (`-ing` $\leftrightarrow$ `-ed`, `-ings`).
-4. **Hyphen & Spacing Tolerance**: Hyphenated terms like `Pre-tensioning` match both `pre-tensioning` and `pre tensioning`.
-5. **Length-Priority Precedence**: Keywords are sorted longest-first. When a specific phrase like `"Hydraulic torque wrench"` matches, its matched span is blanked out so the shorter sub-phrase `"Torque wrench"` does not double-count on the exact same phrase occurrence.
-6. **Distinct Keyword Counting**: If `"Bolt tensioner"` appears 5 times in a document, it is counted once in `matchedKeywords` (`matchCount = 1`).
+The scanner intentionally uses deterministic matching rather than an AI model.
 
-### Dynamic Relevance Scoring
-Relevance is scored dynamically from the distinct keyword match count ([scoreRelevance.service.js](file:///c:/Users/dines/OneDrive/Desktop/tender-keyword-scanner/server/src/services/scoreRelevance.service.js)) against configurable thresholds ([relevance.js](file:///c:/Users/dines/OneDrive/Desktop/tender-keyword-scanner/server/src/config/relevance.js)):
+The processing pipeline is:
 
-| Match Count | Relevance Verdict | Meaning for Tritorc |
-| :---: | :---: | :--- |
-| **0 Matches** | `Not Related` | No bolting or flange management scope found. Skip bid. |
-| **1 – 2 Matches** | `Possibly Related` | Borderline mention; manual engineering review advised. |
-| **3+ Matches** | `Related` | High bolting/flange intent; strong candidate for bidding. |
+    Uploaded Document
+           ↓
+    File Validation
+           ↓
+    Text Extraction
+           ↓
+    Text Normalization
+           ↓
+    Keyword Pattern Matching
+           ↓
+    Distinct Keyword Matches
+           ↓
+    Match Count
+           ↓
+    Relevance Score
+           ↓
+    MongoDB History
+           ↓
+    Frontend + Excel Report
 
-To change thresholds, edit `server/src/config/relevance.js`—no code changes are required.
+### Why Deterministic Matching?
 
----
+For a tender-screening tool, predictable results are important.
 
-## Excel Report Generation
+Given the same document and the same keyword configuration, the scanner should produce the same result every time.
 
-- **Format**: `.xlsx` generated using `exceljs` in-memory.
-- **Columns**:
-  1. `Document Name` (width: 32)
-  2. `Matched Keywords` (width: 44, comma-separated or `(none found)`)
-  3. `Match Count` (width: 14, centered)
-  4. `Relevance to Tritorc` (width: 22, centered with conditional color fill)
-- **Formatting**:
-  - Header: Tritorc Navy Blue (`#1F4E79`) with bold white text.
-  - Relevance Fill: Soft green (`#C6EFCE`) for *Related*, soft yellow (`#FFEB9C`) for *Possibly Related*, soft red (`#FFC7CE`) for *Not Related*.
-  - Frozen Top Row: Headers stay visible while scrolling.
-- **Download Flow**: Sent as a Base64 string in the scan JSON response and automatically converted into a downloadable blob in the browser when clicking **Download Excel Report (.xlsx)**.
+This makes the relevance decision:
 
----
-
-## Supported File Types & Limits
-
-- **Formats**: `.pdf` (Portable Document Format) and `.docx` (Microsoft Word OpenXML).
-- **Max File Size**: 15 MB per file.
-- **Max Batch Count**: 10 files per upload.
-- **Unsupported Formats**: If an unsupported file (e.g. `.txt` or `.xlsx`) is included in a batch, it is flagged with a clear error message while valid files continue processing uninterrupted.
+- Explainable
+- Testable
+- Reproducible
+- Easy to modify
 
 ---
 
-## Known Limitations
+## Relevance Scoring
 
-1. **Scanned / Image-Only PDFs**: Text extraction via `pdf-parse` reads textual streams. If a PDF is a scanned photocopy or flattened raster image without an OCR layer, text cannot be extracted without an OCR preprocessing step.
-2. **Password-Protected Documents**: Encrypted PDFs or password-locked DOCX files will trigger a processing error.
-3. **Large Files (>15MB)**: Files exceeding 15MB are rejected by Multer limits to protect server memory.
+The relevance engine uses the number of distinct matched keywords.
+
+Current thresholds:
+
+| Match Count | Relevance |
+|---:|---|
+| 0 | Not Related |
+| 1–2 | Possibly Related |
+| 3+ | Related |
+
+The scoring logic is separated from the keyword-matching service so the thresholds can be changed independently.
+
+Configuration is maintained in:
+
+    server/src/config/relevance.js
+
+---
+
+## MongoDB Scan History
+
+MongoDB Atlas is used to persist successful scan results.
+
+### Database
+
+    tender_scanner
+
+### Collection
+
+    scan_history
+
+Each successful document scan stores:
+
+    batchId
+    documentName
+    matchedKeywords
+    matchCount
+    relevance
+    scannedAt
+
+Only successfully processed documents are saved to scan history.
+
+If one uploaded file fails while other files are valid, the valid documents can still be scanned and persisted.
+
+The frontend retrieves stored history through:
+
+    GET /api/history
+
+---
+
+## Excel Report
+
+After a successful scan, the backend generates an Excel workbook using `ExcelJS`.
+
+The report contains:
+
+| Column | Description |
+|---|---|
+| Document Name | Original uploaded document name |
+| Matched Keywords | Distinct Tritorc keywords found |
+| Match Count | Number of distinct matched keywords |
+| Relevance | Calculated relevance verdict |
+
+The generated workbook is returned by the API and downloaded directly through the frontend.
+
+---
+
+## File Handling & Limits
+
+Uploaded files are processed in memory rather than permanently stored on the server.
+
+The current backend configuration limits:
+
+- Maximum file size: **15 MB per file**
+- Maximum number of files per request: **10**
+- Supported formats: **PDF and DOCX**
+
+This keeps the application simple for the take-home evaluation while avoiding unnecessary temporary file management.
+
+---
+
+## Error Handling
+
+The backend processes documents independently.
+
+For example, if a batch contains:
+
+    document-a.pdf
+    document-b.docx
+    document-c.txt
+
+the unsupported `.txt` file can return an error while the valid PDF and DOCX files continue through the scanning pipeline.
+
+The API handles cases such as:
+
+- No uploaded files
+- Unsupported file types
+- File processing failures
+- Internal server errors
+
+An individual document failure does not prevent other valid documents in the same batch from being processed.
+
+---
+
+## Testing
+
+The backend uses Node.js's built-in test runner:
+
+    node:test
+
+Run the backend test suite with:
+
+    cd server
+    npm test
+
+The automated tests cover areas including:
+
+- Keyword matching
+- Keyword variants
+- False-positive prevention
+- Text extraction
+- Relevance scoring
+- Excel generation
+- API scan behavior
+
+---
+
+## Sample Documents
+
+The repository contains sample documents under:
+
+    sample-documents/
+
+The sample set represents different relevance levels, including:
+
+- Not Related
+- Possibly Related
+- Related
+
+These documents can be used to demonstrate the scanner during evaluation.
 
 ---
 
 ## Example User Workflow
 
-1. **Open the App**: Navigate to `http://localhost:5173`.
-2. **Inspect Configured Keywords**: Expand the *"Configured Scanning Keywords"* panel to view the 20 active Tritorc terms.
-3. **Stage Documents**: Drag and drop 1 or more PDF/DOCX files into the dropzone (or click to browse).
-4. **Review Selection**: Verify file names and sizes in the preview list; remove any unwanted files using the `X` button.
-5. **Click Scan**: Press the primary `"Scan X Documents for Keywords"` button.
-6. **Review Results**: Observe summary statistics cards and the detailed breakdown per document with matched keyword tags and color-coded relevance badges.
-7. **Filter & Search**: Use the search input or category pills (`All`, `Related`, `Possibly`, `Not Related`) to inspect specific files.
-8. **Export**: Click `"Download Excel Report (.xlsx)"` to save the official spreadsheet report.
-9. **Start New Scan**: Click `"Start New Scan"` to reset the interface and evaluate the next batch.
+### 1. Open the Application
+
+Start the frontend and backend locally.
+
+### 2. Review the Keyword Catalog
+
+The interface displays the Tritorc keyword catalog used for screening.
+
+### 3. Upload Tender Documents
+
+Select one or more PDF/DOCX files or drag them into the upload area.
+
+### 4. Start the Scan
+
+The backend extracts the document text and runs the deterministic keyword engine.
+
+### 5. Review Results
+
+The application displays:
+
+- Document name
+- Matched keywords
+- Match count
+- Relevance
+
+### 6. Review Scan History
+
+Previous successful scans are retrieved from MongoDB Atlas and displayed in the application.
+
+### 7. Export the Report
+
+Download the generated Excel workbook for further bid-estimation or screening work.
+
+---
+
+## AI Usage
+
+AI was used as a **development assistant**, not as the application's decision-making engine.
+
+The scanner itself does not use an AI/LLM to determine:
+
+- Keyword matches
+- Match counts
+- Relevance
+- Excel results
+
+The actual application logic is implemented using deterministic backend services.
+
+This approach was intentionally chosen to make results reproducible and explainable.
+
+Details of AI assistance, prompts, and modifications made to AI-generated suggestions are documented in:
+
+    AI_NOTES.txt
+
+---
+
+## Deployment Plan
+
+The application is structured so that the frontend and backend can be deployed separately.
+
+A possible deployment architecture is:
+
+    User
+      ↓
+    React Frontend
+      ↓
+    Express REST API
+      ↓
+    MongoDB Atlas
+
+The backend requires the following environment variables in the deployment environment:
+
+    PORT=4000
+    MONGODB_URI=<production-mongodb-connection-string>
+
+Deployment considerations and environment configuration are documented separately in:
+
+    DEPLOY.md
+
+No production credentials are stored in the repository.
+
+---
+
+## Design & Engineering Decisions
+
+### In-Memory File Processing
+
+Multer memory storage is used because the scanner only needs the uploaded document during processing.
+
+This avoids unnecessary permanent file storage.
+
+### Separate Services
+
+Text extraction, keyword matching, relevance scoring, Excel generation, and scan-history persistence are implemented as separate services.
+
+This keeps the application modular and makes individual parts easier to test and modify.
+
+### Deterministic Relevance
+
+Relevance is calculated from explicit keyword matches rather than subjective AI-generated judgments.
+
+This makes the result transparent to the user.
+
+### MongoDB Atlas
+
+MongoDB Atlas is used for scan-history persistence and provides a managed database suitable for a deployed version of the application.
+
+---
+
+## Limitations & Future Improvements
+
+Possible future enhancements include:
+
+- OCR support for scanned/image-only PDFs
+- Fuzzy matching for more advanced terminology variations
+- Configurable keyword management through the UI
+- Search and filtering within scan history
+- Pagination for large scan-history datasets
+- Authentication and user-specific scan history
+- Redis caching for high-volume deployments
+- More advanced document field extraction
+- Background processing for very large tender packages
+
+---
+
+## Repository
+
+GitHub:
+
+https://github.com/SwarnaDineshKumar/tender-keyword-scanner
+
+---
+
+## Supporting Documentation
+
+| File | Purpose |
+|---|---|
+| `README.md` | Project overview and setup instructions |
+| `AI_NOTES.txt` | AI assistance and prompt documentation |
+| `DEPLOY.md` | Deployment and environment configuration plan |
+
+---
+
+## Project Objective
+
+The goal of this project is to demonstrate a practical full-stack solution for automating the **initial screening of tender and Scope-of-Work documents** for Tritorc-relevant opportunities.
+
+The implementation focuses on:
+
+- Reliable document ingestion
+- PDF/DOCX text extraction
+- Deterministic keyword matching
+- Explainable relevance scoring
+- Excel reporting
+- Persistent scan history
+- Clean frontend presentation
+- Modular backend architecture
+- Automated testing

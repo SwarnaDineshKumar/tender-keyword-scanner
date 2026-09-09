@@ -1,133 +1,341 @@
 # Deployment Architecture & Production Guide
 
 > [!NOTE]
-> **Important**: In accordance with the assignment brief, actual cloud deployment is **optional / not required** for this take-home exercise. The application is fully configured and verified for local development and self-contained execution. This document details the exact production architecture, hosting strategy, and environment configuration required should the application be deployed to production.
+> Actual cloud deployment is not required for this take-home assignment. The application has been developed and verified for local execution. This document describes the deployment approach that would be used for a production deployment.
 
 ---
 
 ## 1. Recommended Deployment Architecture
 
-To maximize availability, simplify CI/CD, and keep operational costs low, a decoupled PaaS architecture is recommended:
+The application can be deployed as separate frontend and backend services, with MongoDB Atlas providing persistent scan history.
 
-```
-[Browser Client]
-       │
-       ▼ (HTTPS)
-[Frontend Hosting: Vercel or Netlify]
-       │
-       ▼ (HTTPS REST API /api/scan)
-[Backend API: Render, Railway, or Fly.io (Node.js Express)]
-       │
-       ├── In-Memory Extraction (pdf-parse / mammoth)
-       ├── Deterministic Keyword Engine
-       └── Dynamic Excel Generator (exceljs)
-```
+    [Browser]
+        |
+        | HTTPS
+        v
+    [React + Vite Frontend]
+        |
+        | REST API
+        v
+    [Node.js + Express Backend]
+        |
+        +--> PDF/DOCX Text Extraction
+        |
+        +--> Deterministic Keyword Matching
+        |
+        +--> Relevance Scoring
+        |
+        +--> Excel Report Generation
+        |
+        v
+    [MongoDB Atlas]
+        |
+        +--> Scan History
 
 ### Frontend
-- **Recommended Host**: **Vercel** or **Netlify**
-- **Reason**: Native support for Vite/React, global Edge CDN distribution, instant preview deployments, and zero server maintenance.
-- **Root Directory**: `client`
-- **Build Command**: `npm run build`
-- **Publish Directory**: `client/dist`
 
-### Backend API
-- **Recommended Host**: **Render**, **Railway**, or **Fly.io**
-- **Reason**: Container-native Node.js hosting with persistent memory, predictable request routing for file uploads, and automatic HTTPS provisioning.
-- **Root Directory**: `server`
-- **Build Command**: `npm install`
-- **Start Command**: `node src/index.js`
-- **Resource Allocation**: Minimum 512MB RAM / 0.5 CPU to comfortably buffer multi-page PDFs in memory.
+Recommended hosting options:
+
+- Vercel
+- Netlify
+
+The frontend is a Vite/React application located in:
+
+    client/
+
+Build command:
+
+    npm run build
+
+The generated production files are placed in:
+
+    client/dist/
+
+### Backend
+
+Recommended hosting options:
+
+- Render
+- Railway
+- Fly.io
+
+The Express API is located in:
+
+    server/
+
+Production start command:
+
+    node src/index.js
+
+The backend requires access to MongoDB Atlas because scan history is part of the implemented application.
 
 ---
 
 ## 2. Environment Variables
 
-### Backend Environment (`server`)
+### Backend
 
-| Variable | Description | Example (Production) | Default (Local) |
-| :--- | :--- | :--- | :--- |
-| `PORT` | Listening port for Express | `4000` or assigned by host | `4000` |
-| `NODE_ENV` | Runtime environment mode | `production` | `development` |
-| `ALLOWED_ORIGIN` | Allowed CORS origin for client | `https://tender-scanner.tritorc.com` | `*` or `http://localhost:5173` |
+The backend uses:
 
-### Frontend Environment (`client`)
+    server/.env
 
-| Variable | Description | Example (Production) | Default (Local) |
-| :--- | :--- | :--- | :--- |
-| `VITE_API_URL` | Production Backend API Base URL | `https://api.tender-scanner.tritorc.com` | `/api` (via Vite proxy) |
+Required variables:
 
----
+| Variable | Description | Example |
+| :--- | :--- | :--- |
+| `PORT` | Port used by the Express API | `4000` |
+| `MONGODB_URI` | MongoDB Atlas connection string | `mongodb+srv://<user>:<password>@<cluster>/tender_scanner` |
 
-## 3. How Frontend Points to Production Backend
+Example:
 
-In local development, the Vite dev server uses a proxy in `vite.config.js` forwarding `/api` to `http://localhost:4000`.
+    PORT=4000
+    MONGODB_URI=mongodb+srv://<username>:<password>@<cluster-url>/tender_scanner
 
-For production:
-1. In `client/src/services/api.js`, the API base URL can use an environment variable with fallback:
-   ```javascript
-   const API_BASE = import.meta.env.VITE_API_URL 
-     ? `${import.meta.env.VITE_API_URL}/api` 
-     : '/api';
-   ```
-2. Alternatively, configure Vercel / Netlify rewrites in `vercel.json` or `_redirects` to proxy `/api/*` requests directly to the production backend URL, which avoids cross-origin requests completely.
+The actual MongoDB connection string must never be committed to GitHub.
 
-Example `vercel.json` (if deployed on Vercel):
-```json
-{
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://tender-scanner-api.onrender.com/api/:path*"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
-}
-```
+### Frontend
+
+The frontend communicates with the backend API.
+
+For local development, API requests are handled through the Vite development proxy.
+
+For production deployment, the frontend API configuration can be updated to point to the deployed backend URL.
 
 ---
 
-## 4. CORS Considerations
+## 3. MongoDB Atlas
 
-In production, cross-origin requests must be explicitly permitted if the frontend and backend are hosted on separate domains:
+MongoDB Atlas is used to persist scan history.
 
-In `server/src/index.js`:
-```javascript
-const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
-  'https://tender-scanner.tritorc.com'
-];
+### Database
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Blocked by CORS policy'));
-    }
-  },
-  credentials: true,
-}));
-```
+    tender_scanner
+
+### Collection
+
+    scan_history
+
+Each successful document scan stores information including:
+
+- Batch ID
+- Document name
+- Matched keywords
+- Match count
+- Relevance
+- Scan timestamp
+
+### Production Setup
+
+1. Create a MongoDB Atlas cluster.
+2. Create a database user.
+3. Configure Network Access for the backend host.
+4. Obtain the MongoDB connection string.
+5. Add the connection string as `MONGODB_URI` in the backend deployment environment.
+6. Deploy or restart the backend.
+
+The application does not store uploaded tender files permanently in MongoDB. MongoDB is used for scan-history persistence.
 
 ---
 
-## 5. Build and Start Commands Summary
+## 4. Frontend to Backend Configuration
 
-| Workspace | Build Command | Start Command | Test Command |
-| :--- | :--- | :--- | :--- |
-| **Root** | `npm run build` | `npm run start` | `npm test` |
-| **Server** | *(None required)* | `node src/index.js` | `node --test test/` |
-| **Client** | `npm run build` (vite build) | `vite preview` | *(Built during client build)* |
+### Local Development
+
+The frontend uses the Vite development environment and communicates with the local Express API.
+
+Backend:
+
+    http://localhost:4000
+
+Frontend:
+
+    http://localhost:5173
+
+The frontend uses `/api` routes for backend communication.
+
+### Production
+
+After deployment, the frontend should communicate with the public HTTPS URL of the backend.
+
+For example:
+
+    https://<backend-service>.onrender.com
+
+The frontend API configuration can be updated to use the production backend URL.
+
+The exact production URL will depend on the selected hosting provider and deployment configuration.
 
 ---
 
-## 6. Note on MongoDB (Bonus / Optional Feature)
+## 5. CORS
 
-- The core scanner is completely stateless; uploaded documents are processed in-memory and an Excel workbook is returned without database dependency.
-- If persistent scan history is enabled in the future as an optional bonus feature:
-  - Host a managed database on **MongoDB Atlas** (Free M0 cluster).
-  - Set `MONGO_URI=mongodb+srv://<user>:<password>@cluster0.mongodb.net/tender_scanner?retryWrites=true&w=majority` in the backend environment.
-  - The server should gracefully degrade if `MONGO_URI` is not provided, allowing document scanning to function reliably without interruption.
+Because the frontend and backend may be hosted on separate domains, the backend should restrict CORS to the deployed frontend origin in production.
+
+For local development, the application currently allows the frontend to communicate with the local API.
+
+For production, the CORS configuration should be changed to allow only the deployed frontend domain.
+
+Example production relationship:
+
+    Frontend:
+    https://<frontend-domain>
+
+    Backend:
+    https://<backend-domain>
+
+The production frontend URL should be added to the backend's allowed CORS origins.
+
+---
+
+## 6. Build and Start Commands
+
+### Backend
+
+Install dependencies:
+
+    cd server
+    npm install
+
+Start production server:
+
+    node src/index.js
+
+Run tests:
+
+    npm test
+
+### Frontend
+
+Install dependencies:
+
+    cd client
+    npm install
+
+Create production build:
+
+    npm run build
+
+The production build is generated in:
+
+    client/dist/
+
+---
+
+## 7. File Processing Considerations
+
+The backend currently processes uploaded files in memory.
+
+Current limits are:
+
+- Maximum file size: 15 MB per file
+- Maximum number of files per request: 10
+- Supported formats: PDF and DOCX
+
+This approach is suitable for the current take-home application.
+
+For a high-volume production system, additional measures could be introduced, such as:
+
+- Background job processing
+- Object storage for uploaded documents
+- Queue-based processing
+- Request timeouts
+- Resource monitoring
+- Additional memory/CPU allocation
+
+---
+
+## 8. Production API
+
+The backend exposes the following REST endpoints:
+
+    GET /api/health
+
+    GET /api/keywords
+
+    POST /api/scan
+
+    GET /api/history
+
+The production API URL will depend on the selected hosting provider.
+
+Example:
+
+    https://<backend-domain>/api/health
+
+---
+
+## 9. Deployment Flow
+
+A typical production deployment would follow this sequence:
+
+1. Push the project to GitHub.
+2. Create a MongoDB Atlas cluster.
+3. Deploy the Express backend to Render, Railway, or another Node.js hosting provider.
+4. Configure `MONGODB_URI` in the backend environment.
+5. Configure the backend CORS settings for the frontend domain.
+6. Deploy the React/Vite frontend to Vercel or Netlify.
+7. Configure the frontend to use the deployed backend API URL.
+8. Verify the health endpoint.
+9. Upload sample PDF/DOCX documents.
+10. Verify keyword matching and relevance results.
+11. Verify Excel report generation.
+12. Verify that scan history is persisted and retrieved from MongoDB.
+
+---
+
+## 10. Security Considerations
+
+Before production deployment:
+
+- Keep MongoDB credentials in environment variables.
+- Do not commit `.env` files.
+- Use HTTPS for frontend and backend communication.
+- Restrict MongoDB Atlas Network Access where practical.
+- Restrict production CORS to the frontend domain.
+- Maintain reasonable upload-size limits.
+- Validate uploaded file types.
+- Monitor server resources for large document uploads.
+
+---
+
+## 11. Current Deployment Status
+
+Cloud deployment is not required for this assignment.
+
+The application has been developed as a locally runnable full-stack application with:
+
+- React/Vite frontend
+- Node.js/Express REST API
+- PDF and DOCX text extraction
+- Deterministic keyword matching
+- Relevance scoring
+- Excel report generation
+- MongoDB Atlas scan history
+
+Production deployment can be added using the architecture described above without changing the core scanning workflow.
+
+---
+
+## 12. Future Production Improvements
+
+If the application were expanded for larger production workloads, possible improvements include:
+
+- OCR for image-only/scanned PDFs
+- Background document processing
+- Object storage for large uploads
+- Authentication and authorization
+- User-specific scan history
+- Pagination and filtering for history
+- Rate limiting
+- Structured application logging
+- Monitoring and health checks
+- Redis caching where appropriate
+- Automated CI/CD deployment
+
+---
+
+## Repository
+
+GitHub:
+
+https://github.com/SwarnaDineshKumar/tender-keyword-scanner

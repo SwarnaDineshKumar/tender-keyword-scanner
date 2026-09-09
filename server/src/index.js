@@ -3,10 +3,17 @@ const cors = require('cors');
 const { port } = require('./config/env');
 const scanRoutes = require('./routes/scan.routes');
 const { loadKeywords } = require('./utils/keywords');
+const { connectToMongoDB } = require('./config/mongodb');
 
 const app = express();
 
 app.use(cors());
+
+app.use((req, _res, next) => {
+  console.log(`REQUEST: ${req.method} ${req.url}`);
+  next();
+});
+
 app.use(express.json());
 
 app.get('/', (_req, res) => {
@@ -32,6 +39,8 @@ app.use((err, _req, res, _next) => {
 async function start() {
   const keywords = loadKeywords();
   console.log(`Loaded ${keywords.length} keywords for scanning.`);
+
+  await connectToMongoDB();
 
   app.listen(port, () => {
     console.log(`API listening on http://localhost:${port}`);

@@ -1,86 +1,95 @@
-================================================================================
-Tender / Scope-of-Work Keyword Scanner — AI Usage & Development Notes
-================================================================================
+AI_NOTES
+========
 
-This document details the realistic prompts used during the development of the 
-Tender / Scope-of-Work Keyword Scanner application, along with an explanation of 
-how the AI-assisted output was evaluated, modified, or implemented.
+Project: Tritorc Tender / Scope-of-Work Keyword Scanner
+Author: Swarna Kumar
 
---------------------------------------------------------------------------------
-PROMPT 1: Architecture Scaffolding & MongoDB Decoupling
---------------------------------------------------------------------------------
+AI tools were used during development as a coding and problem-solving
+assistant.
 
-[Prompt]
-"Create the initial project structure separating the React frontend and Node.js + 
-Express backend. Do not include MongoDB or authentication. Set up configurable 
-keywords in JSON format, dynamic relevance scoring thresholds, and orchestrate 
-both workspaces with root npm scripts."
+AI was used for selected implementation tasks, code review, debugging,
+technical questions, and documentation. The project was developed
+incrementally, with different parts being written, reviewed, modified,
+and tested during development. AI was not used to generate the entire
+project as one complete solution.
 
-[What it was intended to accomplish]
-Establish a clean full-stack monorepo structure with Vite + React on port 5173 
-and Express on port 4000. The repository originally had partial Mongoose/MongoDB 
-references that needed to be cleanly removed to keep the core scanner stateless 
-and lightweight as specified by the assignment requirements.
 
-[How the output was used]
-MODIFIED. The AI generated the directory layout, Vite config with proxying, and 
-root package.json scripts. The backend services were manually cleaned up to remove 
-all mongoose models and database connection logic, replacing them with a purely 
-stateless in-memory scanner and configurable JSON/JS threshold modules.
+Prompt 1 — Document Extraction
+------------------------------
 
---------------------------------------------------------------------------------
-PROMPT 2: Deterministic Keyword Matching Engine with Word Boundaries
---------------------------------------------------------------------------------
+Prompt:
 
-[Prompt]
-"Improve the deterministic keyword matcher in matchKeywords.service.js. It must 
-be case-insensitive, support singular/plural forms (-s, -es, -ies) and verb forms 
-(-ing/-ed), allow hyphens in words like 'pre-tensioning', and prevent subword 
-false positives such as 'donut splitter' matching 'nut splitter'."
+"Help me write a service that extracts text from both PDF and DOCX
+files in an Express/Node.js backend. I am using pdf-parse for PDFs
+and mammoth for DOCX files."
 
-[What it was intended to accomplish]
-The initial matching implementation used String.prototype.indexOf(), which caused 
-subword false positives (e.g. 'donut splitter' matched 'nut splitter'). The goal 
-was to construct regex lookarounds, generate phrase variants for engineering terms, 
-sort candidate phrases by length descending to prioritize specific phrases over 
-general sub-phrases, and guarantee that distinct keyword counts are never inflated 
-by repeated occurrences within the same document.
+Use:
 
-[How the output was used]
-REVIEWED AND IMPLEMENTED MANUALLY. The regular expression lookaround structure 
-((?<![a-zA-Z0-9]) ... (?![a-zA-Z0-9])) and phrase variant generator were verified 
-and integrated. A comprehensive test suite (keywordMatching.test.js) was created 
-to assert against real-world test cases including 'donut splitter', plurals, 
-and hyphenated phrases.
+Used as assistance for the initial document-extraction service.
+The implementation was then integrated into the existing backend and
+adjusted to handle the project's supported file types and errors.
 
---------------------------------------------------------------------------------
-PROMPT 3: Excel Report Generation & Buffer Delivery
---------------------------------------------------------------------------------
 
-[Prompt]
-"Generate a downloadable Excel (.xlsx) report using exceljs containing: 
-Document Name, Matched Keywords, Match Count, and Relevance to Tritorc. Format 
-headers in navy blue with white text, apply conditional green/yellow/red fills 
-to the relevance column, and return the buffer as Base64 to be downloaded in React."
+Prompt 2 — Keyword Matching Review
+-----------------------------------
 
-[What it was intended to accomplish]
-Provide an automated spreadsheet generator that creates professional, audit-ready 
-reports summarizing scan batches, and delivers them directly through the REST API 
-without requiring local file persistence on the server.
+Prompt:
 
-[How the output was used]
-USED WITH MODIFICATIONS. The column definitions and styles were adapted to match 
-Tritorc's brand palette (#1F4E79 navy blue header). The helper formatKeywords was 
-refined to show '(none found)' for 0 matches. An automated test was written to 
-parse the generated buffer back using exceljs to verify column headers, cell fills, 
-and values.
+"Review this keyword matching function. I need case-insensitive
+matching and some common variations of engineering terms, but I also
+want to avoid false positives caused by matching keywords inside
+unrelated words. What should I improve?"
 
-================================================================================
-Summary of AI Usage Policy Compliance
-================================================================================
-- Keyword matching is 100% deterministic code (no AI/LLM was used in the scanner).
-- AI was used strictly for boilerplate scaffolding, styling inspiration, and 
-  regex lookaround prototyping.
-- All code, test suites, and integration flows were reviewed, tested, and validated 
-  against real government tender PDFs.
-================================================================================
+Use:
+
+Used to review and refine the keyword matching logic and identify
+edge cases that should be tested.
+
+
+Prompt 3 — MongoDB Scan History
+--------------------------------
+
+Prompt:
+
+"I already have a working tender scanning API. I want to persist
+successful scan results in MongoDB Atlas and retrieve recent scan
+history through another API endpoint. What would be a clean way to
+organize the database connection, service, controller, and route?"
+
+Use:
+
+Used for guidance while adding the scan-history functionality to the
+existing application. The resulting approach was adapted to the
+project's existing Express structure and requirements.
+
+
+Additional AI Assistance
+------------------------
+
+AI was also used during development for smaller tasks such as:
+
+- Debugging API and routing issues
+- Reviewing error handling
+- Discussing edge cases
+- Improving frontend presentation
+- Reviewing project structure
+- Preparing project documentation
+
+
+AI Usage Summary
+----------------
+
+AI was used selectively throughout development rather than as a
+single end-to-end project generator.
+
+Some implementation pieces were developed with AI assistance, while
+other parts were written and refined independently. AI-generated
+suggestions and code were reviewed, modified, integrated, and tested
+against the project requirements.
+
+The final scanner does not use an AI/LLM at runtime to determine
+keyword matches or relevance.
+
+Document extraction, keyword matching, match counting, relevance
+scoring, Excel generation, and scan-history handling are implemented
+through the application's backend logic.

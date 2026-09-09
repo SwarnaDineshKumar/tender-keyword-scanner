@@ -5,6 +5,10 @@ const { extractText } = require('../services/extractText.service');
 const { matchKeywords } = require('../services/matchKeywords.service');
 const { scoreRelevance } = require('../services/scoreRelevance.service');
 const { buildExcel, formatKeywords } = require('../services/excel.service');
+const {
+  saveScanHistory,
+  getScanHistory: getScanHistoryFromDatabase,
+} = require('../services/scanHistory.service');
 
 function health(_req, res) {
   res.json({
@@ -16,6 +20,22 @@ function health(_req, res) {
 
 function getKeywords(_req, res) {
   res.json({ keywords: loadKeywords() });
+}
+
+async function getScanHistory(req, res) {
+  try {
+    const history = await getScanHistoryFromDatabase();
+
+    res.json({
+      history,
+    });
+  } catch (error) {
+    console.error('Failed to fetch scan history:', error);
+
+    res.status(500).json({
+      message: 'Failed to fetch scan history',
+    });
+  }
 }
 
 async function scanFile(file, keywords) {
@@ -44,8 +64,11 @@ async function scanFile(file, keywords) {
 async function scan(req, res, next) {
   try {
     const files = req.files || [];
+
     if (files.length === 0) {
-      res.status(400).json({ error: 'No files uploaded. Use multipart field name "files".' });
+      res.status(400).json({
+        error: 'No files uploaded. Use multipart field name "files".',
+      });
       return;
     }
 
@@ -65,10 +88,13 @@ async function scan(req, res, next) {
     }
 
     const successful = results.filter((result) => !result.error);
+
     let excelBase64 = null;
     let excelFilename = null;
 
     if (successful.length > 0) {
+      await saveScanHistory(batchId, successful);
+
       const buffer = await buildExcel(successful);
       excelBase64 = Buffer.from(buffer).toString('base64');
       excelFilename = `tender_scan_report_${Date.now()}.xlsx`;
@@ -85,4 +111,9 @@ async function scan(req, res, next) {
   }
 }
 
-module.exports = { health, getKeywords, scan };
+module.exports = {
+  health,
+  getKeywords,
+  scan,
+  getScanHistory,
+};
